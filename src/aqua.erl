@@ -26,7 +26,7 @@ control_listener({P_tmp_sens, P_heater, P_main}) ->
 
 main({P_tmp_sens, P_heater, Actual_temp, Sending_temp, Given}) ->
     io:format(os:cmd(clear)),
-    io:format("Sens=~p heater=~p main=~p\n",[P_tmp_sens,P_heater,self()]),
+    % io:format("Sens=~p heater=~p main=~p\n",[P_tmp_sens,P_heater,self()]),
     io:format("To jest nasza super aplikacja - Akwarium \n\n"),
     % {Given,_} = string:to_integer(read_from_file(?temp_file)),
     % io:format("\n~p\n", [Sending_temp]),
@@ -40,16 +40,17 @@ main({P_tmp_sens, P_heater, Actual_temp, Sending_temp, Given}) ->
     draw_panel(Actual_temp, Given, Emisja),
     receive
         {data, up, Value} ->
-            Updated_temp = Actual_temp + Value,
-            if
-                Updated_temp >= Given ->
-                    main({P_tmp_sens, P_heater, Updated_temp, 0, Given});
-                true ->
-                    main({P_tmp_sens, P_heater, Updated_temp, 1, Given})
-            end;
+            Updated_temp = round1dec(Actual_temp + Value),
+            main({P_tmp_sens, P_heater, Updated_temp, Sending_temp, Given});
+            % if
+            %     Updated_temp >= Given ->
+            %         main({P_tmp_sens, P_heater, Updated_temp, 0, Given});
+            %     true ->
+            %         main({P_tmp_sens, P_heater, Updated_temp, 1, Given})
+            % end;
 
         {data, down, Value} ->
-            Updated_temp = Actual_temp + Value,
+            Updated_temp = Actual_temp - Value,
             main({P_tmp_sens, P_heater, Updated_temp, Sending_temp, Given});
 
         {control, 0} ->
@@ -88,30 +89,7 @@ main({P_tmp_sens, P_heater, Actual_temp, Sending_temp, Given}) ->
                 main({P_tmp_sens, P_heater, Actual_temp, Sending_temp, Given})
         end
     end.
-    % {Functionality,_} = string:to_integer(io:get_line("Wybierz: ")),
-    
-    % if
-    %     Functionality =:= 0 ->
-    %         init:stop(0);
-        
-    %     Functionality =:= 1 ->
-    %         io:format("Set temp\n"),
-    %         Value = (string:left(io:get_line("Podaj nastaw temp: "),2)),
-    %         Value = is_temp_avaliable(Value),
-    %         write_to_file(?temp_file, Value),
-    %         main({P_tmp_sens, P_heater, P_main});
-
-    %     Functionality =:= 2 ->
-    %         receive
-    %             {ok} -> ok
-    %         end;
-    %         % Załączenie emisji 
-            
-
-    %     true ->
-    %         io:format(os:cmd(clear)),
-    %         main({P_tmp_sens, P_heater, P_main})
-    % end.
+  
 
 tmp_sens() ->
     receive
@@ -189,12 +167,18 @@ Wybierz: ").
 
 draw_panel(Actual, Given, Emisja) ->
     io:format("\t ------------------------\n"),
-    io:format("\t|Akt. temp.    ~p st.C |\n", [float(Actual)]),
+    io:format("\t|Akt. temp.    ~p st.C |\n", [round1dec(Actual)]),
     io:format("\t|Zad. temp.    ~p st.C |\n", [float(Given)]),
     io:format("\t|Emi. temp.       ~s    |\n", [Emisja]),
+    time_hm(),
     io:format("\t ------------------------"),
     option_menu().
 
 dupa(Arg) ->
     io:format(os:cmd(clear)),
     io:format("\n~p\n", [Arg]).
+
+time_hm() ->
+    {_,Time} = erlang:localtime(),
+    {H,M,_} = Time,
+    io:format("\t|          ~p:~p         |\n", [H,M]).
