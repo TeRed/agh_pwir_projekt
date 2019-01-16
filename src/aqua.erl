@@ -71,15 +71,16 @@ main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat}) ->
             end;
 
         {control, 4} ->
-            {H, R} = string:to_integer(io:get_line("Podaj godzine zalaczenia lampy: ")),
-            {M, _} = string:to_integer(string:right(R,3)),
+            {H, M} = get_time(),
             P_timer ! {time_to_start,H,M, self()},
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat});
 
         {control, 5} ->
-            {H, R} = string:to_integer(io:get_line("Podaj godzine wylaczenia lampy: ")),
-            {M, _} = string:to_integer(string:right(R,3)),
+            {H, M} = get_time(),
             P_timer ! {time_to_stop,H,M, self()},
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat});
+
+        _ ->
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat})
         
     after 1000 -> 
@@ -207,15 +208,15 @@ option_menu() ->
 Wybierz: ").
 
 draw_panel(Actual, Given, Sens_damage, {Stat1, {{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}}) ->
-    io:format("\t ------------------------\n"),
-    io:format("\t|Akt. temp.    ~p st.C |\n", [round1dec(Actual)]),
-    io:format("\t|Zad. temp.    ~p st.C |\n", [float(Given)]),
-    io:format("\t|Awr. sens.       ~s    |\n", [Sens_damage]),
-    io:format("\t|Lampa            ~s    |\n", [add_space_after(Stat1)]),
-    io:format("\t|Lampa Start     ~s   |\n", [time_string({Given_start_H, Given_start_M})]),
-    io:format("\t|Lampa Stop      ~s   |\n", [time_string({Given_stop_H, Given_stop_M})]),
+    io:format("\t --------------------------\n"),
+    io:format("\t||Akt. temp.    ~p st.C ||\n", [round1dec(Actual)]),
+    io:format("\t||Zad. temp.    ~p st.C ||\n", [float(Given)]),
+    io:format("\t||Awr. sens.       ~s    ||\n", [Sens_damage]),
+    io:format("\t||Lampa            ~s    ||\n", [add_space_after(Stat1)]),
+    io:format("\t||Lampa Start     ~s   ||\n", [time_string({Given_start_H, Given_start_M})]),
+    io:format("\t||Lampa Stop      ~s   ||\n", [time_string({Given_stop_H, Given_stop_M})]),
     time_hm(),
-    io:format("\t ------------------------"),
+    io:format("\t --------------------------"),
     option_menu().
 
 dupa(Arg) ->
@@ -227,13 +228,13 @@ time_hm() ->
     {H,M,_} = Time,
     if 
         H > 9 andalso M > 9 ->
-            io:format("\t|          ~p:~p         |\n", [H,M]);
+            io:format("\t||          ~p:~p         ||\n", [H,M]);
         M > 9  andalso H < 10 -> 
-            io:format("\t|         0~p:~p         |\n", [H,M]);
+            io:format("\t||         0~p:~p         ||\n", [H,M]);
         H > 9 andalso M < 10 ->
-            io:format("\t|          ~p:0~p         |\n", [H,M]);
+            io:format("\t||          ~p:0~p         ||\n", [H,M]);
         H < 10 andalso M < 10 ->
-            io:format("\t|          0~p:0~p         |\n", [H,M])
+            io:format("\t||          0~p:0~p         ||\n", [H,M])
     end.
 
 time_string({H,M}) ->
@@ -256,4 +257,42 @@ add_space_after(Value) ->
         true -> 
             Value
     end.
+
+get_time() ->
+    Time = string:left(io:get_line("Podaj godzine zalaczenia lampy (gg:mm): "),5),
+    Test = re:run(Time, "^[0-9]{2}:[0-9]{2}$"),
+    if
+        Test =:= nomatch ->
+            io:format("Bledne dane!\n"),
+            get_time();
+
+        true -> 
+            {H, _} = string:to_integer(string:left(Time,2)),
+            {M, _} = string:to_integer(string:right(Time,2)),
+            if
+                H > 23 ->
+                    Ret_H = 0;
+
+                H < 0 ->
+                    Ret_H = 0;
+
+                true -> 
+                    Ret_H = H
+            end,
+            if
+                M > 59 ->
+                    Ret_M = 0;
+
+                M < 0 ->
+                    Ret_M = 0;
+
+                true -> 
+                    Ret_M = M
+            end,
+            {Ret_H, Ret_M}
+    end.
+    
+
+
+
             
