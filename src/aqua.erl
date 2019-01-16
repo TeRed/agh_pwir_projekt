@@ -150,7 +150,7 @@ timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main, P_lam
 
         {time_to_stop,H1,M1, P_main_new} ->
             timer({{Given_start_H, Given_start_M},{H1,M1}, P_main_new, P_lamp})
-    after 60000 ->
+    after 30000 ->
         timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main,P_lamp})
     end.
 
