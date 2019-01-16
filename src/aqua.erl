@@ -4,7 +4,7 @@
 -define(max_temp, 34.0).
 -define(min_temp, 18.0).
 -define(start_temp, 23.0).
--define(sending_temp_at_start, 0).
+-define(sensor_damage, 0).
 -define(given_temp_at_start, 32.0).
 
 -define(temp_file, "./data/temp.txt").
@@ -13,8 +13,9 @@ run() ->
     % Tu ma być Try Catch
     P_tmp_sens = spawn(fun tmp_sens/0),
     P_heater = spawn(fun heater/0),
-    % P_core = spawn(fun core_temp/0),
-    P_main = spawn(aqua, main, [{P_tmp_sens, P_heater, float(?start_temp), ?sending_temp_at_start, ?given_temp_at_start}]),
+    P_lamp = spawn(fun lamp/0),
+    P_timer = spawn(aqua, timer, [{{0,0},{0,0},undefined, P_lamp}]),
+    P_main = spawn(aqua, main, [{P_tmp_sens, P_heater, P_timer, float(?start_temp), ?sensor_damage, ?given_temp_at_start, {off, {{0,0},{0,0}}}}]),
     control_listener({P_tmp_sens, P_heater, P_main}).
 
 
@@ -24,34 +25,28 @@ control_listener({P_tmp_sens, P_heater, P_main}) ->
     control_listener({P_tmp_sens, P_heater, P_main}).
 
 
-main({P_tmp_sens, P_heater, Actual_temp, Sending_temp, Given}) ->
+main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat}) ->
     io:format(os:cmd(clear)),
-    % io:format("Sens=~p heater=~p main=~p\n",[P_tmp_sens,P_heater,self()]),
     io:format("To jest nasza super aplikacja - Akwarium \n\n"),
-    % {Given,_} = string:to_integer(read_from_file(?temp_file)),
-    % io:format("\n~p\n", [Sending_temp]),
     if
-        Sending_temp =:= 0 ->
-            Emisja = "Nie";
+        Sens_damage =:= 0 ->
+            Sens_status = "Nie";
 
         true ->
-            Emisja = "Tak"
+            Sens_status = "Tak"
     end,
-    draw_panel(Actual_temp, Given, Emisja),
+    draw_panel(Actual_temp, Given, Sens_status, Stat),
     receive
         {data, up, Value} ->
             Updated_temp = round1dec(Actual_temp + Value),
-            main({P_tmp_sens, P_heater, Updated_temp, Sending_temp, Given});
-            % if
-            %     Updated_temp >= Given ->
-            %         main({P_tmp_sens, P_heater, Updated_temp, 0, Given});
-            %     true ->
-            %         main({P_tmp_sens, P_heater, Updated_temp, 1, Given})
-            % end;
+            main({P_tmp_sens, P_heater, P_timer, Updated_temp, Sens_damage, Given, Stat});
 
         {data, down, Value} ->
             Updated_temp = Actual_temp - Value,
-            main({P_tmp_sens, P_heater, Updated_temp, Sending_temp, Given});
+            main({P_tmp_sens, P_heater, P_timer, Updated_temp, Sens_damage, Given, Stat});
+
+        {lamp, Albert} ->
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Albert});
 
         {control, 0} ->
             init:stop(0);
@@ -59,34 +54,43 @@ main({P_tmp_sens, P_heater, Actual_temp, Sending_temp, Given}) ->
         {control, 1} ->
             Given_plus_one = Given + 1,
             Given_checked = is_temp_avaliable(Given_plus_one),
-            % dupa(Given_plus_one);
-            % write_to_file(?temp_file, Given_checked),
-            main({P_tmp_sens, P_heater, Actual_temp, Sending_temp, Given_checked});
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given_checked, Stat});
 
         {control, 2} ->
             Given_subs_one = Given - 1.0,
             Given_checked = is_temp_avaliable(Given_subs_one),
-            % write_to_file(?temp_file, Given_checked),
-            main({P_tmp_sens, P_heater, Actual_temp, Sending_temp, Given_checked});
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given_checked, Stat});
         
         {control, 3} -> 
             if 
-                Sending_temp =:= 0 ->
-                    % Włącz nadawanie temp
-                    main({P_tmp_sens, P_heater, Actual_temp, 1, Given});
+                Sens_damage =:= 1 ->
+                    % wyłącz awarie sensora temp
+                    main({P_tmp_sens, P_heater, P_timer, Actual_temp, 0, Given, Stat});
                 true -> 
-                    % Wyłącz nadawanie temp
-                    main({P_tmp_sens, P_heater, Actual_temp, 0, Given})
-            end
+                    % Włącz włącz awarię sensora temp
+                    main({P_tmp_sens, P_heater, P_timer, Actual_temp, 1, Given, Stat})
+            end;
+
+        {control, 4} ->
+            {H, R} = string:to_integer(io:get_line("Podaj godzine zalaczenia lampy: ")),
+            {M, _} = string:to_integer(string:right(R,3)),
+            P_timer ! {time_to_start,H,M, self()},
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat});
+
+        {control, 5} ->
+            {H, R} = string:to_integer(io:get_line("Podaj godzine wylaczenia lampy: ")),
+            {M, _} = string:to_integer(string:right(R,3)),
+            P_timer ! {time_to_stop,H,M, self()},
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat})
         
     after 1000 -> 
         if
-            Sending_temp =:= 1 ->
+            Sens_damage =:= 0 ->
                 P_tmp_sens!{P_heater,self(), Actual_temp, Given},
-                main({P_tmp_sens, P_heater, Actual_temp, Sending_temp, Given});
+                main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat});
                 
             true ->
-                main({P_tmp_sens, P_heater, Actual_temp, Sending_temp, Given})
+                main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat})
         end
     end.
   
@@ -96,7 +100,6 @@ tmp_sens() ->
         {P_heater,P_main,Actual_temp, Given} ->
             % if  Value < Zadana -> ON to heater
             % else -> OFF to heater
-            % Given = strin:to_integer(read_from_file(?temp_file)),
             if
                 Actual_temp  < Given ->
                     P_heater!{self(),P_main,on},
@@ -122,15 +125,60 @@ heater() ->
             % Wait 1 sec, and send rand value (0.1 - 3)
             timer:sleep(1000),
             Rand_val = round1dec(rand:uniform() * 3) + 0.1,
-            % U dołu do poprawy !!! Co chce przesłać dalej 
             P_main!{data, down, Rand_val},
             heater()
     end.
 
-% core_temp() ->
-%     receive
-%         {ok} -> ok
-%     end.
+timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main, P_lamp}) ->
+    A = check_time({Given_start_H * 60 + Given_start_M},{Given_stop_H * 60 + Given_stop_M}),
+    if
+        A ->
+            P_lamp ! {on,P_main,{{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}} };
+
+        true -> 
+            P_lamp ! {off, P_main,{{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}}
+    end,
+    receive
+        {time_to_start,H1,M1, P_main_new} ->
+            timer({{H1,M1},{Given_stop_H, Given_stop_M}, P_main_new, P_lamp});
+
+        {time_to_stop,H1,M1, P_main_new} ->
+            timer({{Given_start_H, Given_start_M},{H1,M1}, P_main_new, P_lamp})
+    after 1000 ->
+        timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main,P_lamp})
+    end.
+
+check_time({Start_HM},{Stop_HM}) ->
+    {_,{H,M,_}} = erlang:localtime(),
+    HM = H * 60 + M,
+    if
+        Start_HM =< Stop_HM ->
+            if
+                HM >= Start_HM andalso HM =< Stop_HM ->
+                    true;
+                true ->
+                    false
+            end;
+        true ->
+            if
+                HM >= Stop_HM andalso HM =< Start_HM ->
+                    false;
+                true ->
+                    true
+            end
+    end.
+
+lamp() ->
+    receive
+        {_, undefined, _} ->
+            lamp();
+        {on, P_main, Times} ->
+            P_main!{lamp, {on, Times}},
+            lamp();
+        {off, P_main, Times} ->
+            P_main!{lamp, {off,Times}},
+            lamp()
+    end.
 
 is_temp_avaliable(Temp) -> 
     if 
@@ -144,14 +192,6 @@ is_temp_avaliable(Temp) ->
             Temp
     end.
 
-write_to_file(File_path, Value) ->
-    {ok, File_handler} = file:open(File_path, [write]),
-    file:write(File_handler,Value).
-
-read_from_file(File_path) -> 
-    {ok, File_handler} = file:open(File_path,[read]),
-    {ok, Readed_string} = file:read(File_handler, 1024*1024),
-    string:left(Readed_string,2).
 
 round1dec(Number) ->
     P = math:pow(10, 1),
@@ -161,15 +201,20 @@ option_menu() ->
     io:format("\n
             [1] Zwieksz temp\n
             [2] Zmniejsz temp\n
-            [3] Wl/Wy emisje temp\n
+            [3] Symuluj awarię czujki\n
+            [4] Ustaw godzine Wl swiatla\n
+            [5] Ustaw godzine Wy swiatla\n
             [0] Exit \n\n
 Wybierz: ").
 
-draw_panel(Actual, Given, Emisja) ->
+draw_panel(Actual, Given, Sens_damage, {Stat1, {{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}}) ->
     io:format("\t ------------------------\n"),
     io:format("\t|Akt. temp.    ~p st.C |\n", [round1dec(Actual)]),
     io:format("\t|Zad. temp.    ~p st.C |\n", [float(Given)]),
-    io:format("\t|Emi. temp.       ~s    |\n", [Emisja]),
+    io:format("\t|Awr. sens.       ~s    |\n", [Sens_damage]),
+    io:format("\t|Lampa            ~s    |\n", [Stat1]),
+    io:format("\t|Lampa Start   ~s    |\n", [time_string({Given_start_H, Given_start_M})]),
+    io:format("\t|Lampa Stop    ~s   |\n", [time_string({Given_stop_H, Given_stop_M})]),
     time_hm(),
     io:format("\t ------------------------"),
     option_menu().
@@ -181,4 +226,25 @@ dupa(Arg) ->
 time_hm() ->
     {_,Time} = erlang:localtime(),
     {H,M,_} = Time,
-    io:format("\t|          ~p:~p         |\n", [H,M]).
+    if 
+        H > 9 andalso M > 9 ->
+            io:format("\t|          ~p:~p         |\n", [H,M]);
+        M > 9  andalso H < 10 -> 
+            io:format("\t|         0~p:~p         |\n", [H,M]);
+        H > 9 andalso M < 10 ->
+            io:format("\t|          ~p:0~p         |\n", [H,M]);
+        H < 10 andalso M < 10 ->
+            io:format("\t|          0~p:0~p         |\n", [H,M])
+    end.
+
+time_string({H,M}) ->
+    if 
+        H > 9 andalso M > 9 ->
+            integer_to_list(H) ++ ":" ++ integer_to_list(M);
+        M > 9  andalso H < 10 -> 
+            "0" ++ integer_to_list(H) ++ ":" ++ integer_to_list(M);
+        H > 9 andalso M < 10 ->
+            integer_to_list(H) ++ ":0" ++ integer_to_list(M);
+        H < 10 andalso M < 10 ->
+            "0" ++ integer_to_list(H) ++ ":0" ++ integer_to_list(M)
+    end.
