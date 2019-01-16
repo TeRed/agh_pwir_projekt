@@ -7,14 +7,15 @@
 -define(sensor_damage, 0).
 -define(given_temp_at_start, 32.0).
 
--define(temp_file, "./data/temp.txt").
+-define(data_file, "./data/date.txt").
 
 run() -> 
     P_tmp_sens = spawn(fun tmp_sens/0),
     P_heater = spawn(fun heater/0),
     P_lamp = spawn(fun lamp/0),
     P_timer = spawn(aqua, timer, [{{0,0},{0,0},undefined, P_lamp}]),
-    P_main = spawn(aqua, main, [{P_tmp_sens, P_heater, P_timer, float(?start_temp), ?sensor_damage, ?given_temp_at_start, {off, {{0,0},{0,0}}}}]),
+    Feed_date = read_from_file(?data_file),
+    P_main = spawn(aqua, main, [{P_tmp_sens, P_heater, P_timer, float(?start_temp), ?sensor_damage, ?given_temp_at_start, {off, {{0,0},{0,0}}}, Feed_date}]),
     control_listener({P_tmp_sens, P_heater, P_main}).
 
 
@@ -24,7 +25,7 @@ control_listener({P_tmp_sens, P_heater, P_main}) ->
     control_listener({P_tmp_sens, P_heater, P_main}).
 
 
-main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat}) ->
+main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date}) ->
     io:format(os:cmd(clear)),
     io:format("To jest nasza super aplikacja - Akwarium \n\n"),
     if
@@ -34,18 +35,18 @@ main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat}) ->
         true ->
             Sens_status = "Tak"
     end,
-    draw_panel(Actual_temp, Given, Sens_status, Stat),
+    draw_panel(Actual_temp, Given, Sens_status, Stat, Feed_date),
     receive
         {data, up, Value} ->
             Updated_temp = round1dec(Actual_temp + Value),
-            main({P_tmp_sens, P_heater, P_timer, Updated_temp, Sens_damage, Given, Stat});
+            main({P_tmp_sens, P_heater, P_timer, Updated_temp, Sens_damage, Given, Stat, Feed_date});
 
         {data, down, Value} ->
             Updated_temp = Actual_temp - Value,
-            main({P_tmp_sens, P_heater, P_timer, Updated_temp, Sens_damage, Given, Stat});
+            main({P_tmp_sens, P_heater, P_timer, Updated_temp, Sens_damage, Given, Stat, Feed_date});
 
         {lamp, Albert} ->
-            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Albert});
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Albert, Feed_date});
 
         {control, 0} ->
             init:stop(0);
@@ -53,44 +54,49 @@ main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat}) ->
         {control, 1} ->
             Given_plus_one = Given + 1,
             Given_checked = is_temp_avaliable(Given_plus_one),
-            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given_checked, Stat});
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given_checked, Stat, Feed_date});
 
         {control, 2} ->
             Given_subs_one = Given - 1.0,
             Given_checked = is_temp_avaliable(Given_subs_one),
-            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given_checked, Stat});
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given_checked, Stat, Feed_date});
         
         {control, 3} -> 
             if 
                 Sens_damage =:= 1 ->
                     % wyłącz awarie sensora temp
-                    main({P_tmp_sens, P_heater, P_timer, Actual_temp, 0, Given, Stat});
+                    main({P_tmp_sens, P_heater, P_timer, Actual_temp, 0, Given, Stat, Feed_date});
                 true -> 
                     % Włącz włącz awarię sensora temp
-                    main({P_tmp_sens, P_heater, P_timer, Actual_temp, 1, Given, Stat})
+                    main({P_tmp_sens, P_heater, P_timer, Actual_temp, 1, Given, Stat, Feed_date})
             end;
 
         {control, 4} ->
             {H, M} = get_time(),
             P_timer ! {time_to_start,H,M, self()},
-            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat});
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date});
 
         {control, 5} ->
             {H, M} = get_time(),
             P_timer ! {time_to_stop,H,M, self()},
-            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat});
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date});
+
+        {control, 6} ->
+            Feed = date_dm(),
+            write_to_file(?data_file, Feed),
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed});
 
         _ ->
-            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat})
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date})
         
     after 1000 -> 
         if
             Sens_damage =:= 0 ->
                 P_tmp_sens!{P_heater,self(), Actual_temp, Given},
-                main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat});
+                main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date});
                 
             true ->
-                main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat})
+                main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date})
         end
     end.
   
@@ -113,7 +119,7 @@ tmp_sens() ->
 
 heater() ->
     receive
-        {P_tmp_sens,P_main,on} ->
+        {_,P_main,on} ->
             % Wait 1 sec, and send rand value (0.1 - 3) to core
             timer:sleep(1000),
             Rand_val = round1dec(rand:uniform() * 3) + 0.1,
@@ -121,7 +127,7 @@ heater() ->
             P_main!{data, up, Rand_val},
             heater();
 
-        {P_tmp_sens,P_main,off} ->
+        {_,P_main,off} ->
             % Wait 1 sec, and send rand value (0.1 - 3)
             timer:sleep(1000),
             Rand_val = round1dec(rand:uniform() * 3) + 0.1,
@@ -204,10 +210,11 @@ option_menu() ->
         [3] Symuluj awarię czujki\n
         [4] Ustaw godzine Wl swiatla\n
         [5] Ustaw godzine Wy swiatla\n
+        [6] Potwierdz karmienie rybek\n
         [0] Exit \n\n
 Wybierz: ").
 
-draw_panel(Actual, Given, Sens_damage, {Stat1, {{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}}) ->
+draw_panel(Actual, Given, Sens_damage, {Stat1, {{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}}, Feed_date) ->
     io:format("\t --------------------------\n"),
     io:format("\t||Akt. temp.    ~p st.C ||\n", [round1dec(Actual)]),
     io:format("\t||Zad. temp.    ~p st.C ||\n", [float(Given)]),
@@ -215,6 +222,7 @@ draw_panel(Actual, Given, Sens_damage, {Stat1, {{Given_start_H, Given_start_M},{
     io:format("\t||Lampa            ~s    ||\n", [add_space_after(Stat1)]),
     io:format("\t||Lampa Start     ~s   ||\n", [time_string({Given_start_H, Given_start_M})]),
     io:format("\t||Lampa Stop      ~s   ||\n", [time_string({Given_stop_H, Given_stop_M})]),
+    io:format("\t||Ost. karm.      ~s   ||\n", [Feed_date]),
     time_hm(),
     io:format("\t --------------------------"),
     option_menu().
@@ -292,7 +300,38 @@ get_time() ->
             {Ret_H, Ret_M}
     end.
     
+write_to_file(File_path, Value) ->
+    {ok,F} = file:open(File_path, [write]),
+    try
+        file:write(F, Value)
+    after
+        file:close(F)
+    end.  
 
 
+read_from_file(File_path) ->
+    {ok,F} = file:open(File_path, [read]),
+    try
+        {ok,Str} = file:read(F, 1024*1024),
+        string:left(Str,5)
+    after
+        file:close(F)
+    end.            
 
-            
+date_dm() ->
+    {Date, _} = erlang:localtime(),
+    {_, M, D} = Date,
+    if
+        M < 10 ->
+            Ret_M = "0" ++ integer_to_list(M);
+
+        true ->
+            Ret_M = integer_to_list(M)
+    end,
+    if
+        D < 10 ->
+            Ret_D = "0" ++ integer_to_list(D);
+        true ->
+            Ret_D = integer_to_list(D)
+    end,
+    Ret_D ++ "/" ++ Ret_M.
