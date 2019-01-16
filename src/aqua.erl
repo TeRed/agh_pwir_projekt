@@ -10,7 +10,6 @@
 -define(temp_file, "./data/temp.txt").
 
 run() -> 
-    % Tu ma być Try Catch
     P_tmp_sens = spawn(fun tmp_sens/0),
     P_heater = spawn(fun heater/0),
     P_lamp = spawn(fun lamp/0),
@@ -144,7 +143,7 @@ timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main, P_lam
 
         {time_to_stop,H1,M1, P_main_new} ->
             timer({{Given_start_H, Given_start_M},{H1,M1}, P_main_new, P_lamp})
-    after 1000 ->
+    after 60000 ->
         timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main,P_lamp})
     end.
 
@@ -199,12 +198,12 @@ round1dec(Number) ->
 
 option_menu() ->
     io:format("\n
-            [1] Zwieksz temp\n
-            [2] Zmniejsz temp\n
-            [3] Symuluj awarię czujki\n
-            [4] Ustaw godzine Wl swiatla\n
-            [5] Ustaw godzine Wy swiatla\n
-            [0] Exit \n\n
+        [1] Zwieksz temp zad\n
+        [2] Zmniejsz temp zad\n
+        [3] Symuluj awarię czujki\n
+        [4] Ustaw godzine Wl swiatla\n
+        [5] Ustaw godzine Wy swiatla\n
+        [0] Exit \n\n
 Wybierz: ").
 
 draw_panel(Actual, Given, Sens_damage, {Stat1, {{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}}) ->
@@ -212,9 +211,9 @@ draw_panel(Actual, Given, Sens_damage, {Stat1, {{Given_start_H, Given_start_M},{
     io:format("\t|Akt. temp.    ~p st.C |\n", [round1dec(Actual)]),
     io:format("\t|Zad. temp.    ~p st.C |\n", [float(Given)]),
     io:format("\t|Awr. sens.       ~s    |\n", [Sens_damage]),
-    io:format("\t|Lampa            ~s    |\n", [Stat1]),
-    io:format("\t|Lampa Start   ~s    |\n", [time_string({Given_start_H, Given_start_M})]),
-    io:format("\t|Lampa Stop    ~s   |\n", [time_string({Given_stop_H, Given_stop_M})]),
+    io:format("\t|Lampa            ~s    |\n", [add_space_after(Stat1)]),
+    io:format("\t|Lampa Start     ~s   |\n", [time_string({Given_start_H, Given_start_M})]),
+    io:format("\t|Lampa Stop      ~s   |\n", [time_string({Given_stop_H, Given_stop_M})]),
     time_hm(),
     io:format("\t ------------------------"),
     option_menu().
@@ -248,3 +247,13 @@ time_string({H,M}) ->
         H < 10 andalso M < 10 ->
             "0" ++ integer_to_list(H) ++ ":0" ++ integer_to_list(M)
     end.
+
+add_space_after(Value) ->
+    if
+        Value =:= on ->
+            lists:concat([Value, " "]);
+
+        true -> 
+            Value
+    end.
+            
