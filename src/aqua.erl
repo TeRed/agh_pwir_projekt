@@ -47,6 +47,9 @@ main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed
 
         {lamp, Albert} ->
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Albert, Feed_date});
+        
+        {feed, Parse_date} ->
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Parse_date});
 
         {control, 0} ->
             init:stop(0);
@@ -82,9 +85,9 @@ main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date});
 
         {control, 6} ->
-            Feed = date_dm(),
-            write_to_file(?data_file, Feed),
-            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed});
+            P_feed = spawn(fun feed/0),
+            P_feed ! {generate, self()},
+            main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date});
 
         _ ->
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date})
@@ -335,3 +338,12 @@ date_dm() ->
             Ret_D = integer_to_list(D)
     end,
     Ret_D ++ "/" ++ Ret_M.
+
+
+feed() ->
+    receive
+        {generate, From} ->
+            Parse_date = date_dm(),
+            write_to_file(?data_file, Parse_date),
+            From ! {feed, Parse_date}
+    end.
