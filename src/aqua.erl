@@ -238,7 +238,7 @@ time_hm() ->
         H > 9 andalso M > 9 ->
             io:format("\t||          ~p:~p         ||\n", [H,M]);
         M > 9  andalso H < 10 -> 
-            io:format("\t||         0~p:~p         ||\n", [H,M]);
+            io:format("\t||          0~p:~p         ||\n", [H,M]);
         H > 9 andalso M < 10 ->
             io:format("\t||          ~p:0~p         ||\n", [H,M]);
         H < 10 andalso M < 10 ->
