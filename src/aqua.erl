@@ -7,8 +7,6 @@
 
 
 % % Dedfines 
-% -define(max_temp, 34.0).
-% -define(min_temp, 18.0).
 -define(start_temp, 23.0).
 -define(sensor_damage, 0).
 -define(given_temp_at_start, 32.0).
@@ -34,13 +32,13 @@ control_listener({P_tmp_sens, P_heater, P_main}) ->
 
 main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date}) ->
     io:format(os:cmd(clear)),
-    io:format("To jest nasza super aplikacja - Akwarium \n\n"),
+    io:format("----===== Aquarium Control Manager =====---- \n\n"),
     if
         Sens_damage =:= 0 ->
-            Sens_status = "Nie";
+            Sens_status = "No";
 
         true ->
-            Sens_status = "Tak"
+            Sens_status = "Yes"
     end,
     draw_panel(Actual_temp, Given, Sens_status, Stat, Feed_date),
     receive
@@ -58,40 +56,40 @@ main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed
         {feed, Parse_date} ->
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Parse_date});
 
-        {control, 0} ->
+        {control, 0} -> %Exit
             init:stop(0);
 
-        {control, 1} ->
+        {control, 1} -> %Given temp UP
             Given_plus_one = Given + 1,
             Given_checked = is_temp_avaliable(Given_plus_one),
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given_checked, Stat, Feed_date});
 
-        {control, 2} ->
+        {control, 2} -> %Given temp DOWN
             Given_subs_one = Given - 1.0,
             Given_checked = is_temp_avaliable(Given_subs_one),
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given_checked, Stat, Feed_date});
         
-        {control, 3} -> 
+        {control, 3} -> %sensor error
             if 
                 Sens_damage =:= 1 ->
-                    % wyłącz awarie sensora temp
+                    % Turn off sensor errror
                     main({P_tmp_sens, P_heater, P_timer, Actual_temp, 0, Given, Stat, Feed_date});
                 true -> 
-                    % Włącz włącz awarię sensora temp
+                    %  Turn on sensor errror
                     main({P_tmp_sens, P_heater, P_timer, Actual_temp, 1, Given, Stat, Feed_date})
             end;
 
-        {control, 4} ->
+        {control, 4} -> %Set lamp start time
             {H, M} = get_time(),
             P_timer ! {time_to_start,H,M, self()},
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date});
 
-        {control, 5} ->
+        {control, 5} -> %Set lamp stop time
             {H, M} = get_time(),
             P_timer ! {time_to_stop,H,M, self()},
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date});
 
-        {control, 6} ->
+        {control, 6} -> %Update last feed date
             P_feed = spawn(fun feed/0),
             P_feed ! {generate, self()},
             main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed_date});
@@ -110,7 +108,7 @@ main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed
         end
     end.
   
-
+% Temp Sensor process main function
 tmp_sens() ->
     receive
         {P_heater,P_main,Actual_temp, Given} ->
@@ -127,6 +125,7 @@ tmp_sens() ->
             end                   
     end.
 
+% Heater process main function
 heater() ->
     receive
         {_,P_main,on} ->
@@ -144,6 +143,7 @@ heater() ->
             heater()
     end.
 
+% Timer process main function
 timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main, P_lamp}) ->
     A = check_time({Given_start_H * 60 + Given_start_M},{Given_stop_H * 60 + Given_stop_M}),
     if
@@ -163,26 +163,7 @@ timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main, P_lam
         timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main,P_lamp})
     end.
 
-% check_time({Start_HM},{Stop_HM}) ->
-%     {_,{H,M,_}} = erlang:localtime(),
-%     HM = H * 60 + M,
-%     if
-%         Start_HM =< Stop_HM ->
-%             if
-%                 HM >= Start_HM andalso HM =< Stop_HM ->
-%                     true;
-%                 true ->
-%                     false
-%             end;
-%         true ->
-%             if
-%                 HM >= Stop_HM andalso HM =< Start_HM ->
-%                     false;
-%                 true ->
-%                     true
-%             end
-%     end.
-
+% Lamp process main function
 lamp() ->
     receive
         {_, undefined, _} ->
@@ -195,157 +176,7 @@ lamp() ->
             lamp()
     end.
 
-% is_temp_avaliable(Temp) -> 
-%     if 
-%         Temp > ?max_temp ->
-%             ?max_temp;
-
-%         Temp < ?min_temp ->
-%             ?min_temp;
-
-%         true -> 
-%             Temp
-%     end.
-
-
-% round1dec(Number) ->
-%     P = math:pow(10, 1),
-%     floor(Number * P) / P.
-
-% option_menu() ->
-%     io:format("\n
-%         [1] Zwieksz temp zad\n
-%         [2] Zmniejsz temp zad\n
-%         [3] Symuluj awarię czujki\n
-%         [4] Ustaw godzine Wl swiatla\n
-%         [5] Ustaw godzine Wy swiatla\n
-%         [6] Potwierdz karmienie rybek\n
-%         [0] Exit \n\n
-% Wybierz: ").
-
-% draw_panel(Actual, Given, Sens_damage, {Stat1, {{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}}, Feed_date) ->
-%     io:format("\t --------------------------\n"),
-%     io:format("\t||Akt. temp.    ~p st.C ||\n", [round1dec(Actual)]),
-%     io:format("\t||Zad. temp.    ~p st.C ||\n", [float(Given)]),
-%     io:format("\t||Awr. sens.       ~s    ||\n", [Sens_damage]),
-%     io:format("\t||Lampa            ~s    ||\n", [add_space_after(Stat1)]),
-%     io:format("\t||Lampa Start     ~s   ||\n", [time_string({Given_start_H, Given_start_M})]),
-%     io:format("\t||Lampa Stop      ~s   ||\n", [time_string({Given_stop_H, Given_stop_M})]),
-%     io:format("\t||Ost. karm.      ~s   ||\n", [Feed_date]),
-%     time_hm(),
-%     io:format("\t --------------------------"),
-%     option_menu().
-
-% dupa(Arg) ->
-%     io:format(os:cmd(clear)),
-%     io:format("\n~p\n", [Arg]).
-
-% time_hm() ->
-%     {_,Time} = erlang:localtime(),
-%     {H,M,_} = Time,
-%     if 
-%         H > 9 andalso M > 9 ->
-%             io:format("\t||          ~p:~p         ||\n", [H,M]);
-%         M > 9  andalso H < 10 -> 
-%             io:format("\t||          0~p:~p         ||\n", [H,M]);
-%         H > 9 andalso M < 10 ->
-%             io:format("\t||          ~p:0~p         ||\n", [H,M]);
-%         H < 10 andalso M < 10 ->
-%             io:format("\t||          0~p:0~p         ||\n", [H,M])
-%     end.
-
-% time_string({H,M}) ->
-%     if 
-%         H > 9 andalso M > 9 ->
-%             integer_to_list(H) ++ ":" ++ integer_to_list(M);
-%         M > 9  andalso H < 10 -> 
-%             "0" ++ integer_to_list(H) ++ ":" ++ integer_to_list(M);
-%         H > 9 andalso M < 10 ->
-%             integer_to_list(H) ++ ":0" ++ integer_to_list(M);
-%         H < 10 andalso M < 10 ->
-%             "0" ++ integer_to_list(H) ++ ":0" ++ integer_to_list(M)
-%     end.
-
-% add_space_after(Value) ->
-%     if
-%         Value =:= on ->
-%             lists:concat([Value, " "]);
-
-%         true -> 
-%             Value
-%     end.
-
-% get_time() ->
-%     Time = string:left(io:get_line("Podaj godzine zalaczenia lampy (gg:mm): "),5),
-%     Test = re:run(Time, "^[0-9]{2}:[0-9]{2}$"),
-%     if
-%         Test =:= nomatch ->
-%             io:format("Bledne dane!\n"),
-%             get_time();
-
-%         true -> 
-%             {H, _} = string:to_integer(string:left(Time,2)),
-%             {M, _} = string:to_integer(string:right(Time,2)),
-%             if
-%                 H > 23 ->
-%                     Ret_H = 0;
-
-%                 H < 0 ->
-%                     Ret_H = 0;
-
-%                 true -> 
-%                     Ret_H = H
-%             end,
-%             if
-%                 M > 59 ->
-%                     Ret_M = 0;
-
-%                 M < 0 ->
-%                     Ret_M = 0;
-
-%                 true -> 
-%                     Ret_M = M
-%             end,
-%             {Ret_H, Ret_M}
-%     end.
-    
-% write_to_file(File_path, Value) ->
-%     {ok,F} = file:open(File_path, [write]),
-%     try
-%         file:write(F, Value)
-%     after
-%         file:close(F)
-%     end.  
-
-
-% read_from_file(File_path) ->
-%     {ok,F} = file:open(File_path, [read]),
-%     try
-%         {ok,Str} = file:read(F, 1024*1024),
-%         string:left(Str,5)
-%     after
-%         file:close(F)
-%     end.            
-
-% date_dm() ->
-%     {Date, _} = erlang:localtime(),
-%     {_, M, D} = Date,
-%     if
-%         M < 10 ->
-%             Ret_M = "0" ++ integer_to_list(M);
-
-%         true ->
-%             Ret_M = integer_to_list(M)
-%     end,
-%     if
-%         D < 10 ->
-%             Ret_D = "0" ++ integer_to_list(D);
-%         true ->
-%             Ret_D = integer_to_list(D)
-%     end,
-%     Ret_D ++ "/" ++ Ret_M.
-
-
+% Feed process main function
 feed() ->
     receive
         {generate, From} ->
