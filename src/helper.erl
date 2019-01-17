@@ -42,11 +42,11 @@ is_temp_avaliable(Temp) ->
     end.
 
 get_time() ->
-    Time = string:left(io:get_line("Podaj godzine zalaczenia lampy (gg:mm): "),5),
+    Time = string:left(io:get_line("Set time (gg:mm): "),5),
     Test = re:run(Time, "^[0-9]{2}:[0-9]{2}$"),
     if
         Test =:= nomatch ->
-            io:format("Bledne dane!\n"),
+            io:format("Wrong input data!\n"),
             get_time();
 
         true -> 

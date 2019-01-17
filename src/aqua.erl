@@ -35,7 +35,7 @@ main({P_tmp_sens, P_heater, P_timer, Actual_temp, Sens_damage, Given, Stat, Feed
     io:format("----===== Aquarium Control Manager =====---- \n\n"),
     if
         Sens_damage =:= 0 ->
-            Sens_status = "No";
+            Sens_status = "No ";
 
         true ->
             Sens_status = "Yes"

@@ -4,29 +4,29 @@
 -import(helper, [round1dec/1]).
 
 draw_panel(Actual, Given, Sens_damage, {Stat1, {{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}}, Feed_date) ->
-    io:format("\t --------------------------\n"),
-    io:format("\t||Akt. temp.    ~p st.C ||\n", [round1dec(Actual)]),
-    io:format("\t||Zad. temp.    ~p st.C ||\n", [float(Given)]),
-    io:format("\t||Awr. sens.       ~s    ||\n", [Sens_damage]),
-    io:format("\t||Lampa            ~s    ||\n", [add_space_after(Stat1)]),
-    io:format("\t||Lampa Start     ~s   ||\n", [time_string({Given_start_H, Given_start_M})]),
-    io:format("\t||Lampa Stop      ~s   ||\n", [time_string({Given_stop_H, Given_stop_M})]),
-    io:format("\t||Ost. karm.      ~s   ||\n", [Feed_date]),
+    io:format("\t ==========================\n"),
+    io:format("\t||Now  temp.    ~p st.C ||\n", [round1dec(Actual)]),
+    io:format("\t||Given temp.   ~p st.C ||\n", [float(Given)]),
+    io:format("\t||Sens. err.       ~s    ||\n", [Sens_damage]),
+    io:format("\t||Lamp             ~s    ||\n", [add_space_after(Stat1)]),
+    io:format("\t||Lamp Start      ~s   ||\n", [time_string({Given_start_H, Given_start_M})]),
+    io:format("\t||Lamp Stop       ~s   ||\n", [time_string({Given_stop_H, Given_stop_M})]),
+    io:format("\t||Last feed       ~s   ||\n", [Feed_date]),
     time_hm(),
-    io:format("\t --------------------------"),
+    io:format("\t =========================="),
     option_menu().
 
 
 option_menu() ->
     io:format("\n
-        [1] Zwieksz temp zad\n
-        [2] Zmniejsz temp zad\n
-        [3] Symuluj awarię czujki\n
-        [4] Ustaw godzine Wl swiatla\n
-        [5] Ustaw godzine Wy swiatla\n
-        [6] Potwierdz karmienie rybek\n
+        [1] Given temp UP\n
+        [2] Given temp DOWN\n
+        [3] Simulate sensor error\n
+        [4] Set lamp start time\n
+        [5] Set lamp stop time\n
+        [6] Vouch feed date\n
         [0] Exit \n\n
-Wybierz: ").
+Select: ").
 
 
 add_space_after(Value) ->
