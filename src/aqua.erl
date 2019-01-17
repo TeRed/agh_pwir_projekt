@@ -18,7 +18,7 @@ run() ->
     P_tmp_sens = spawn(fun tmp_sens/0),
     P_heater = spawn(fun heater/0),
     P_lamp = spawn(fun lamp/0),
-    P_timer = spawn(aqua, timer, [{{0,0},{0,0},undefined, P_lamp}]),
+    P_timer = spawn(aqua, timer, [{{0,0},{0,0},undefined, P_lamp, off}]),
     Feed_date = read_from_file(?data_file),
     P_main = spawn(aqua, main, [{P_tmp_sens, P_heater, P_timer, float(?start_temp), ?sensor_damage, ?given_temp_at_start, {off, {{0,0},{0,0}}}, Feed_date}]),
     control_listener({P_tmp_sens, P_heater, P_main}).
@@ -144,23 +144,27 @@ heater() ->
     end.
 
 % Timer process main function
-timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main, P_lamp}) ->
+timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main, P_lamp, State}) ->
     A = check_time({Given_start_H * 60 + Given_start_M},{Given_stop_H * 60 + Given_stop_M}),
     if
-        A ->
-            P_lamp ! {on,P_main,{{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}} };
+        A andalso State =:= off ->
+            P_lamp ! {on,P_main,{{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}};
 
-        true -> 
-            P_lamp ! {off, P_main,{{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}}
+        A =:= false andalso State =:= on -> 
+            P_lamp ! {off, P_main,{{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M}}};
+
+        true -> ok
     end,
     receive
         {time_to_start,H1,M1, P_main_new} ->
-            timer({{H1,M1},{Given_stop_H, Given_stop_M}, P_main_new, P_lamp});
+            P_lamp ! {State,P_main_new,{{H1, M1},{Given_stop_H, Given_stop_M}}},
+            timer({{H1,M1},{Given_stop_H, Given_stop_M}, P_main_new, P_lamp, State});
 
         {time_to_stop,H1,M1, P_main_new} ->
-            timer({{Given_start_H, Given_start_M},{H1,M1}, P_main_new, P_lamp})
+            P_lamp ! {State,P_main_new,{{Given_start_H, Given_start_M},{H1, M1}}},
+            timer({{Given_start_H, Given_start_M},{H1,M1}, P_main_new, P_lamp, State})
     after 1000 ->
-        timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main,P_lamp})
+        timer({{Given_start_H, Given_start_M},{Given_stop_H, Given_stop_M},P_main,P_lamp, State})
     end.
 
 % Lamp process main function
